@@ -142,6 +142,9 @@ void init_instructions(char *file, int entrypoint) {
 			return;
 		}
 
+		if(size == 0)
+			continue;
+
 		if(inst == NULL) {
 			inst = malloc(sizeof(instruction_t));
 			inst->prev = NULL;
