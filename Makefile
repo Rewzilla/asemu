@@ -5,7 +5,7 @@ CFLAGS	:= -g
 LIBS	:= -lncurses -lkeystone -lcapstone -lunicorn -lpthread
 
 all:
-	$(CC) $(CFLAGS) $(LIBS) -o asemu asemu.c
+	$(CC) $(CFLAGS) -o asemu asemu.c $(LIBS)
 
 clean:
 	rm -rf *.o
