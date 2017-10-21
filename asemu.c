@@ -85,8 +85,12 @@ void init_window(window_t *w, int y, int x, int height, int width, char *title) 
 
 void draw_window(window_t *w) {
 
+	wattron(w->border, COLOR_PAIR(1));
 	box(w->border, 0, 0);
+	wattroff(w->border, COLOR_PAIR(1));
+	wattron(w->border, COLOR_PAIR(2));
 	mvwprintw(w->border, 0, 2, "[%s]", w->title);
+	wattroff(w->border, COLOR_PAIR(2));
 	wrefresh(w->border);
 	wrefresh(w->content);
 
@@ -230,11 +234,13 @@ void render() {
 	draw_window(&registers);
 
 	for(i=stack.height-1,j=ESP_START; i>=0; i--,j-=4) {
+
 		if(j==ESP_START) {
 			memset(mem, '\0', 4);
 		} else {
 			uc_mem_read(uc, j, mem, 4);
 		}
+
 		if(j == regs.esp && regs.esp == regs.ebp) {
 			strcpy(ptrstr, "B>S>");
 		} else if(j == regs.esp) {
@@ -244,8 +250,10 @@ void render() {
 		} else {
 			ptrstr[0] = '\x00';
 		}
+
 		mvwprintw(stack.content, i, 0, "%-5s%08x %02hhx%02hhx%02hhx%02hhx",
 			ptrstr, j, mem[0], mem[1], mem[2], mem[3]);
+
 	}
 	draw_window(&stack);
 
@@ -271,6 +279,7 @@ void render() {
 int main(int argc, char *argv[]) {
 
 	int opt;
+	uc_err err;
 
 	set_tabsize(4);
 
@@ -313,6 +322,11 @@ int main(int argc, char *argv[]) {
 	init_window(&code, 0, REGISTER_WIDTH, parent_y - CONSOLE_HEIGHT, parent_x - REGISTER_WIDTH - STACK_WIDTH, "CODE");
 	init_window(&console, parent_y - CONSOLE_HEIGHT, 0, CONSOLE_HEIGHT, parent_x, "CONSOLE");
 
+	start_color();
+	init_pair(1, COLOR_GREEN, COLOR_BLACK);
+	init_pair(2, COLOR_BLACK, COLOR_GREEN);
+	init_pair(3, COLOR_RED, COLOR_BLACK);
+
 	init_regs();
 
 	inst = NULL;
@@ -325,19 +339,24 @@ int main(int argc, char *argv[]) {
 
 	init_memory();
 
-	uc_err err;
 	char buff[1024];
 	for(;;) {
 
 		render();
 
+		if(err = uc_emu_start(uc, regs.eip, 0xffffffff, 0, 1)) {
+			wattron(console.content, COLOR_PAIR(3));
+			mvwprintw(console.content, 0, 0,  "ERROR: %s\n", uc_strerror(err));
+			wattroff(console.content, COLOR_PAIR(3));
+			wgetnstr(console.content, buff, 1024);
+			break;
+		}
+
 		wgetnstr(console.content, buff, 1024);
 
-		err = uc_emu_start(uc, regs.eip, 0xffffffff, 0, 1);
-		if (err) {
-			printf("Failed on uc_emu_start() with error returned %u: %s\n", err, uc_strerror(err));
-		}
 	}
+
+	endwin();
 
 	return 0;
 
