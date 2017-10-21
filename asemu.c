@@ -242,11 +242,11 @@ void render() {
 		}
 
 		if(j == regs.esp && regs.esp == regs.ebp) {
-			strcpy(ptrstr, "B>S>");
+			strcpy(ptrstr, "BS>");
 		} else if(j == regs.esp) {
-			strcpy(ptrstr, "  S>");
+			strcpy(ptrstr, " S>");
 		} else if(j == regs.ebp) {
-			strcpy(ptrstr, "B>");
+			strcpy(ptrstr, " B>");
 		} else {
 			ptrstr[0] = '\x00';
 		}
