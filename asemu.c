@@ -64,14 +64,74 @@ typedef struct registers {
 	int eip;
 } registers_t;
 
+typedef struct label {
+	char text[1024];
+	int offset;
+} label_t;
+
 window_t registers, stack, code, console;
 int parent_y, parent_x;
 
 instruction_t *inst;
 registers_t regs;
 
+label_t labels[1024];
+int label_count;
+
 ks_engine *ks;
 uc_engine *uc;
+
+int islabel(char *line) {
+
+	int i;
+
+	for(i=0; i<strlen(line); i++) {
+		if(line[i] >= 'a' && line[i] <= 'z'
+		|| line[i] >= 'A' && line[i] <= 'Z'
+		|| line[i] >= '0' && line[i] <= '9'
+		|| line[i] == '_') {
+			// ok
+		} else {
+			break;;
+		}
+	}
+
+	if(line[i] == ':') {
+		return 1;
+	} else {
+		return 0;
+	}
+
+}
+
+int iscall(char *line) {
+
+	int i;
+
+	for(i=0; i<strlen(line); i++) {
+		if(line[i] == ' ' || line[i] == '\t')
+			continue;
+		else if(strncasecmp(&line[i], "call", 4) == 0)
+			return 1;
+		else
+			return 0;
+	}
+
+}
+
+char *calllabel(char *line) {
+
+	while(strncasecmp(line, "call", 4) != 0)
+		line++;
+
+	line += 4;
+
+	while(line[0] == ' ' || line[0] == '\t')
+		line++;
+
+	return line;
+
+}
 
 void init_window(window_t *w, int y, int x, int height, int width, char *title) {
 
@@ -129,6 +189,7 @@ void init_instructions(char *file, int entrypoint) {
 	size_t size, count;
 	int i;
 	instruction_t *tmp;
+	int addr, offset;
 
 	fp = fopen(file, "r");
 	if(!fp) {
@@ -137,6 +198,9 @@ void init_instructions(char *file, int entrypoint) {
 	}
 
 	tmp = inst;
+	addr = entrypoint;
+	label_count = 0;
+	offset = 0;
 
 	while(fgets(buff, 1024, fp)) {
 
@@ -147,19 +211,38 @@ void init_instructions(char *file, int entrypoint) {
 			}
 		}
 
-		if(ks_asm(ks, buff, 0, &opcodes, &size, &count) != KS_ERR_OK) {
-			printf("ERROR: Failed to assemble instruction '%s'\n", buff);
-			return;
+		if(islabel(buff)) {
+			strcpy(labels[label_count].text, buff);
+			for(i=0; i<strlen(labels[label_count].text); i++) {
+				if(labels[label_count].text[i] == ':') {
+					labels[label_count].text[i] = '\0';
+					break;
+				}
+			}
+			labels[label_count].offset = offset;
+			label_count++;
+			continue;
+		}
+
+		if(iscall(buff)) {
+			ks_asm(ks, "call +0", 0, &opcodes, &size, &count);
+		} else {
+			if(ks_asm(ks, buff, 0, &opcodes, &size, &count) != KS_ERR_OK) {
+				printf("ERROR: Failed to assemble intstruction '%s'\n", buff);
+				return;
+			}
 		}
 
 		if(size == 0)
 			continue;
+		else
+			offset += size;
 
 		if(inst == NULL) {
 			inst = malloc(sizeof(instruction_t));
 			inst->prev = NULL;
 			inst->next = NULL;
-			inst->address = entrypoint;
+			inst->address = addr;
 			memcpy(inst->opcodes, opcodes, size);
 			inst->opcode_len = size;
 			strncpy(inst->text, buff, 32);
@@ -170,19 +253,36 @@ void init_instructions(char *file, int entrypoint) {
 			tmp = tmp->next;
 			tmp->prev = tmp;
 			tmp->next = NULL;
-			tmp->address = entrypoint;
+			tmp->address = addr;
 			memcpy(tmp->opcodes, opcodes, size);
 			tmp->opcode_len = size;
 			strncpy(tmp->text, buff, 32);
 		}
 
-		entrypoint += size;
+		addr += size;
 
 		free(opcodes);
 
 	}
 
 	fclose(fp);
+
+	tmp = inst;
+	offset = 0;
+	while(tmp != NULL) {
+		if(iscall(tmp->text)) {
+			for(i=0; i<label_count; i++) {
+				if(strncmp(labels[i].text, calllabel(tmp->text), strlen(labels[i].text)) == 0)
+					break;
+			}
+			sprintf(buff, "call %c%d", (offset > labels[i].offset) ? '-' : '+',
+				(offset > labels[i].offset) ? offset - labels[i].offset: labels[i].offset - offset);
+			ks_asm(ks, buff, 0, &opcodes, &size, &count);
+			memcpy(tmp->opcodes, opcodes, size);
+		}
+		offset += tmp->opcode_len;
+		tmp = tmp->next;
+	}
 
 }
 
@@ -214,6 +314,7 @@ void usage(char *arg0) {
 void render() {
 
 	int i, j;
+	int offset;
 	char opcode[4], opcodes[32], mem[4], ptrstr[10] = {0};
 	instruction_t *tmp;
 
@@ -257,7 +358,14 @@ void render() {
 	}
 	draw_window(&stack);
 
+	offset = 0;
 	for(i=0,tmp=inst; tmp; i++,tmp=tmp->next) {
+		for(j=0; j<label_count; j++) {
+			if(labels[j].offset == offset) {
+				mvwprintw(code.content, i, 0, "% *s%s:", 28, " ", labels[j].text);
+				i++;
+			}
+		}
 		memset(opcodes, '\0', 32);
 		for(j=0; j<tmp->opcode_len; j++) {
 			sprintf(opcode, "%02hhx ", tmp->opcodes[j]);
@@ -267,6 +375,7 @@ void render() {
 			"%c %08x %-16s %s\n",
 			(tmp->address==regs.eip ? '>' : ' '),
 			tmp->address, opcodes, tmp->text);
+		offset += tmp->opcode_len;
 	}
 	draw_window(&code);
 

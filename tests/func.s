@@ -1,28 +1,28 @@
-push	10
-push	20
-call	+11
 
-add		esp, 8
+main:
+	push    10
+	push    20
+	call    func
+	add     esp, 8
+	ret
 
-nop
-nop
-nop
+do_nothing:
+	ret
 
-push	ebp
-mov		ebp, esp
-sub		esp, 4
+func:
+	push    ebp
+	mov     ebp, esp
+	sub     esp, 4
 
-mov		eax, [ebp + 8]
-mov		[ebp - 4], eax
+	call    do_nothing
 
-mov		eax, [ebp + 12]
-add		[ebp - 4], eax
+	mov     eax, [ebp + 8]
+	mov     [ebp - 4], eax
 
-mov		eax, [ebp - 4]
-mov		esp, ebp
-pop		ebp
-ret
+	mov     eax, [ebp + 12]
+	add     [ebp - 4], eax
 
-nop
-nop
-nop
+	mov     eax, [ebp - 4]
+	mov     esp, ebp
+	pop     ebp
+	ret

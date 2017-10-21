@@ -4,6 +4,7 @@ pop	eax
 pop	ebx
 push	0x55667788
 pop	ecx
+call	test
 mov	eax, 75		; A
 mov	ebx, 100
 inc	eax			; B
