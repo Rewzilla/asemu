@@ -7,10 +7,16 @@
 #include <keystone/keystone.h>
 #include <unicorn/unicorn.h>
 
+#define EIP_START 0x04000000
+#define ESP_START 0x2b000000
+#define EBP_START ESP_START
+
+#define PAGE_SZ 4*1024*1024
+
 // WITH the border
 #define CONSOLE_HEIGHT (5 + 2)
 #define REGISTER_WIDTH (20 + 2)
-#define STACK_WIDTH (20 + 2)
+#define STACK_WIDTH (22 + 2)
 
 #define REGISTERS_FMT \
 	"EAX:    %08x\n" \
@@ -94,9 +100,9 @@ void init_regs() {
 	regs.edx = 0x00000000;
 	regs.esi = 0x00000000;
 	regs.edi = 0x00000000;
-	regs.ebp = 0xffffffff;
-	regs.esp = 0xffffffff;
-	regs.eip = 0x00400000;
+	regs.ebp = EBP_START;
+	regs.esp = ESP_START;
+	regs.eip = EIP_START;
 
 	uc_reg_write(uc, UC_X86_REG_EAX, &regs.eax);
 	uc_reg_write(uc, UC_X86_REG_EBX, &regs.ebx);
@@ -180,11 +186,13 @@ void init_memory() {
 
 	instruction_t *tmp;
 
-	uc_mem_map(uc, regs.eip, 2 * 1024 * 1024, UC_PROT_ALL);
+	uc_mem_map(uc, regs.eip, PAGE_SZ, UC_PROT_ALL);
 
 	for(tmp=inst; tmp; tmp=tmp->next) {
 		uc_mem_write(uc, tmp->address, tmp->opcodes, tmp->opcode_len);
 	}
+
+	uc_mem_map(uc, regs.esp - PAGE_SZ, PAGE_SZ, UC_PROT_ALL);
 
 }
 
@@ -202,7 +210,7 @@ void usage(char *arg0) {
 void render() {
 
 	int i, j;
-	char opcode[4], opcodes[32];
+	char opcode[4], opcodes[32], mem[4], ptrstr[10] = {0};
 	instruction_t *tmp;
 
 	uc_reg_read(uc, UC_X86_REG_EAX, &regs.eax);
@@ -221,6 +229,24 @@ void render() {
 		regs.eip);
 	draw_window(&registers);
 
+	for(i=stack.height-1,j=ESP_START; i>=0; i--,j-=4) {
+		if(j==ESP_START) {
+			memset(mem, '\0', 4);
+		} else {
+			uc_mem_read(uc, j, mem, 4);
+		}
+		if(j == regs.esp && regs.esp == regs.ebp) {
+			strcpy(ptrstr, "B>S>");
+		} else if(j == regs.esp) {
+			strcpy(ptrstr, "  S>");
+		} else if(j == regs.ebp) {
+			strcpy(ptrstr, "B>");
+		} else {
+			ptrstr[0] = '\x00';
+		}
+		mvwprintw(stack.content, i, 0, "%-5s%08x %02hhx%02hhx%02hhx%02hhx",
+			ptrstr, j, mem[0], mem[1], mem[2], mem[3]);
+	}
 	draw_window(&stack);
 
 	for(i=0,tmp=inst; tmp; i++,tmp=tmp->next) {
@@ -245,6 +271,8 @@ void render() {
 int main(int argc, char *argv[]) {
 
 	int opt;
+
+	set_tabsize(4);
 
 	while((opt = getopt(argc, argv, "h")) != -1) {
 		switch(opt) {
@@ -297,6 +325,7 @@ int main(int argc, char *argv[]) {
 
 	init_memory();
 
+	uc_err err;
 	char buff[1024];
 	for(;;) {
 
@@ -304,8 +333,10 @@ int main(int argc, char *argv[]) {
 
 		wgetnstr(console.content, buff, 1024);
 
-		uc_emu_start(uc, regs.eip, 0xffffffff, 0, 1);
-
+		err = uc_emu_start(uc, regs.eip, 0xffffffff, 0, 1);
+		if (err) {
+			printf("Failed on uc_emu_start() with error returned %u: %s\n", err, uc_strerror(err));
+		}
 	}
 
 	return 0;
