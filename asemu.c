@@ -86,6 +86,21 @@ int inst_index;
 ks_engine *ks;
 uc_engine *uc;
 
+void crash_handler(int sig) {
+
+	endwin();
+
+	printf(
+		"\033[1;31mUh oh! asemu crashed. :(\033[0m\n"
+		"If this crash is reproducable and you have time, please email\n"
+		"andrew@jmpesp.org with details so it can be fixed.\n"
+		"Thanks in advance!\n"
+	);
+
+	exit(0);
+
+}
+
 int islabel(char *line) {
 
 	int i;
@@ -485,6 +500,8 @@ int main(int argc, char *argv[]) {
 
 	int opt;
 	uc_err err;
+
+	signal(SIGSEGV, crash_handler);
 
 	set_tabsize(4);
 
