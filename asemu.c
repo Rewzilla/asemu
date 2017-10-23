@@ -7,6 +7,8 @@
 #include <keystone/keystone.h>
 #include <unicorn/unicorn.h>
 
+#define PROMPT "(asemu)>"
+
 #define EIP_START 0x04000000
 #define ESP_START 0x2b000000
 #define EBP_START ESP_START
@@ -15,21 +17,21 @@
 
 // WITH the border
 #define CONSOLE_HEIGHT (5 + 2)
-#define REGISTER_WIDTH (20 + 2)
-#define STACK_WIDTH (22 + 2)
+#define REGISTER_WIDTH (14 + 2)
+#define STACK_WIDTH (21 + 2)
 
 #define REGISTERS_FMT \
-	"EAX:    %08x\n" \
-	"EBX:    %08x\n" \
-	"ECX:    %08x\n" \
-	"EDX:    %08x\n" \
-	"ESI:    %08x\n" \
-	"EDI:    %08x\n" \
-	"EBP:    %08x\n" \
-	"ESP:    %08x\n" \
-	"EIP:    %08x\n" \
+	"EAX: %08x\n" \
+	"EBX: %08x\n" \
+	"ECX: %08x\n" \
+	"EDX: %08x\n" \
+	"ESI: %08x\n" \
+	"EDI: %08x\n" \
+	"EBP: %08x\n" \
+	"ESP: %08x\n" \
+	"EIP: %08x\n" \
 /* TODO
-	"EFLAGS: %08x\n"
+	"EFLAGS: %08x\n" \
 	" CF:%d PF:%d AF:%d ZF:%d\n" \
 	" SF:%d TF:%d IF:%d DF:%d\n" \
 	" OF:%d NT:%d RF:%d VM:%d\n"
@@ -48,6 +50,7 @@ typedef struct instruction {
 	char opcodes[16];
 	size_t opcode_len;
 	unsigned int address;
+	int index;
 	struct instruction *prev;
 	struct instruction *next;
 } instruction_t;
@@ -78,6 +81,8 @@ registers_t regs;
 label_t labels[1024];
 int label_count;
 
+int inst_index;
+
 ks_engine *ks;
 uc_engine *uc;
 
@@ -104,14 +109,15 @@ int islabel(char *line) {
 
 }
 
-int iscall(char *line) {
+int isbranch(char *line) {
 
 	int i;
 
 	for(i=0; i<strlen(line); i++) {
 		if(line[i] == ' ' || line[i] == '\t')
 			continue;
-		else if(strncasecmp(&line[i], "call", 4) == 0)
+		// dirty hack for jmp's, oh jeez, TODO :(
+		else if(strncasecmp(&line[i], "call", 4) == 0 || line[i] == 'j')
 			return 1;
 		else
 			return 0;
@@ -119,17 +125,80 @@ int iscall(char *line) {
 
 }
 
-char *calllabel(char *line) {
+char *get_label(char *line) {
 
-	while(strncasecmp(line, "call", 4) != 0)
+	int i;
+	static char label[1024];
+
+	while(*line == ' ' || *line == '\t')
 		line++;
 
-	line += 4;
-
-	while(line[0] == ' ' || line[0] == '\t')
+	while(*line != ' ' && *line != '\t')
 		line++;
 
-	return line;
+	while(*line == ' ' || *line == '\t')
+		line++;
+
+	i = 0;
+
+	while(*line >= 'a' && *line <= 'z'
+		||*line >= 'A' && *line <= 'Z'
+		||*line >= '0' && *line <= '9'
+		||*line == '_')
+		label[i++] = *line++;
+
+	label[i] = '\0';
+
+	return label;
+
+}
+
+char *get_mnemonic(char *line) {
+
+	int i;
+	static char mnemonic[1024];
+
+	while(*line == ' ' || *line == '\t')
+		line++;
+
+	i = 0;
+
+	while(*line >= 'a' && *line <= 'z'
+		||*line >= 'A' && *line <= 'Z'
+		||*line >= '0' && *line <= '9'
+		||*line == '_')
+		mnemonic[i++] = *line++;
+
+	mnemonic[i] = '\0';
+
+	return mnemonic;
+
+}
+
+int count_instructions(instruction_t *inst) {
+
+	int c;
+
+	c = 0;
+	while(inst != NULL) {
+		c++;
+		inst = inst->next;
+	}
+
+	return c;
+
+}
+
+int get_inst_index() {
+
+	instruction_t *tmp;
+
+	tmp = inst;
+	while(tmp->address != regs.eip) {
+		tmp = tmp->next;
+	}
+
+	return tmp->index;
 
 }
 
@@ -185,11 +254,12 @@ void init_instructions(char *file, int entrypoint) {
 
 	FILE *fp;
 	char buff[1024];
+	char instruction[16];
 	unsigned char *opcodes;
 	size_t size, count;
 	int i;
 	instruction_t *tmp;
-	int addr, offset;
+	int addr, offset, index;
 
 	fp = fopen(file, "r");
 	if(!fp) {
@@ -201,6 +271,7 @@ void init_instructions(char *file, int entrypoint) {
 	addr = entrypoint;
 	label_count = 0;
 	offset = 0;
+	index = 0;
 
 	while(fgets(buff, 1024, fp)) {
 
@@ -224,12 +295,14 @@ void init_instructions(char *file, int entrypoint) {
 			continue;
 		}
 
-		if(iscall(buff)) {
-			ks_asm(ks, "call +0", 0, &opcodes, &size, &count);
+		if(isbranch(buff)) {
+			sprintf(instruction, "%s +0", get_mnemonic(buff));
+			ks_asm(ks, instruction, 0, &opcodes, &size, &count);
 		} else {
 			if(ks_asm(ks, buff, 0, &opcodes, &size, &count) != KS_ERR_OK) {
+				endwin();
 				printf("ERROR: Failed to assemble intstruction '%s'\n", buff);
-				return;
+				exit(0);
 			}
 		}
 
@@ -243,6 +316,7 @@ void init_instructions(char *file, int entrypoint) {
 			inst->prev = NULL;
 			inst->next = NULL;
 			inst->address = addr;
+			inst->index = index++;
 			memcpy(inst->opcodes, opcodes, size);
 			inst->opcode_len = size;
 			strncpy(inst->text, buff, 32);
@@ -254,6 +328,7 @@ void init_instructions(char *file, int entrypoint) {
 			tmp->prev = tmp;
 			tmp->next = NULL;
 			tmp->address = addr;
+			tmp->index = index++;
 			memcpy(tmp->opcodes, opcodes, size);
 			tmp->opcode_len = size;
 			strncpy(tmp->text, buff, 32);
@@ -270,14 +345,14 @@ void init_instructions(char *file, int entrypoint) {
 	tmp = inst;
 	offset = 0;
 	while(tmp != NULL) {
-		if(iscall(tmp->text)) {
+		if(isbranch(tmp->text)) {
 			for(i=0; i<label_count; i++) {
-				if(strncmp(labels[i].text, calllabel(tmp->text), strlen(labels[i].text)) == 0)
+				if(strncmp(labels[i].text, get_label(tmp->text), strlen(labels[i].text)) == 0)
 					break;
 			}
-			sprintf(buff, "call %c%d", (offset > labels[i].offset) ? '-' : '+',
+			sprintf(instruction, "%s %c%d", get_mnemonic(tmp->text), (offset > labels[i].offset) ? '-' : '+',
 				(offset > labels[i].offset) ? offset - labels[i].offset: labels[i].offset - offset);
-			ks_asm(ks, buff, 0, &opcodes, &size, &count);
+			ks_asm(ks, instruction, 0, &opcodes, &size, &count);
 			memcpy(tmp->opcodes, opcodes, size);
 		}
 		offset += tmp->opcode_len;
@@ -352,14 +427,22 @@ void render() {
 			ptrstr[0] = '\x00';
 		}
 
-		mvwprintw(stack.content, i, 0, "%-5s%08x %02hhx%02hhx%02hhx%02hhx",
+		mvwprintw(stack.content, i, 0, "%-4s%08x %02hhx%02hhx%02hhx%02hhx",
 			ptrstr, j, mem[0], mem[1], mem[2], mem[3]);
 
 	}
 	draw_window(&stack);
 
 	offset = 0;
-	for(i=0,tmp=inst; tmp; i++,tmp=tmp->next) {
+	tmp = inst;
+	if(count_instructions(inst) > code.height) {
+		for(i=0; i<inst_index-code.height/2; i++) {
+			offset += tmp->opcode_len;
+			tmp = tmp->next;
+		}
+	}
+
+	for(i=0; tmp && i<code.height; i++,tmp=tmp->next) {
 		for(j=0; j<label_count; j++) {
 			if(labels[j].offset == offset) {
 				mvwprintw(code.content, i, 0, "% *s%s:", 28, " ", labels[j].text);
@@ -379,9 +462,10 @@ void render() {
 	}
 	draw_window(&code);
 
+	mvwprintw(console.content, 0, 0, "%s ", PROMPT);
 	draw_window(&console);
 
-	wmove(console.content, 0, 0);
+//	wmove(console.content, 0, strlen(PROMPT)+1);
 
 }
 
@@ -440,6 +524,7 @@ int main(int argc, char *argv[]) {
 
 	inst = NULL;
 	init_instructions(argv[optind], regs.eip);
+	inst_index = 0;
 
 	if(!inst) {
 		printf("ERROR: failed to parse instructions\n");
@@ -453,15 +538,20 @@ int main(int argc, char *argv[]) {
 
 		render();
 
+		wgetnstr(console.content, buff, 1024);
+
 		if(err = uc_emu_start(uc, regs.eip, 0xffffffff, 0, 1)) {
 			wattron(console.content, COLOR_PAIR(3));
 			mvwprintw(console.content, 0, 0,  "ERROR: %s\n", uc_strerror(err));
 			wattroff(console.content, COLOR_PAIR(3));
+			mvwprintw(console.content, 1, 0, "(ENTER to quit)");
 			wgetnstr(console.content, buff, 1024);
 			break;
 		}
 
-		wgetnstr(console.content, buff, 1024);
+		render();
+
+		inst_index = get_inst_index();
 
 	}
 
