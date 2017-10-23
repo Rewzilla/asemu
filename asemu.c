@@ -194,11 +194,14 @@ int get_inst_index() {
 	instruction_t *tmp;
 
 	tmp = inst;
-	while(tmp->address != regs.eip) {
+	while(tmp && tmp->address != regs.eip) {
 		tmp = tmp->next;
 	}
 
-	return tmp->index;
+	if(!tmp)
+		return -1;
+	else
+		return tmp->index;
 
 }
 
@@ -469,6 +472,15 @@ void render() {
 
 }
 
+void error(const char *msg) {
+
+		wattron(console.content, COLOR_PAIR(3));
+		mvwprintw(console.content, 0, 0,  "ERROR: %s\n", msg);
+		wattroff(console.content, COLOR_PAIR(3));
+		mvwprintw(console.content, 1, 0, "(ENTER to quit)");
+
+}
+
 int main(int argc, char *argv[]) {
 
 	int opt;
@@ -541,10 +553,7 @@ int main(int argc, char *argv[]) {
 		wgetnstr(console.content, buff, 1024);
 
 		if(err = uc_emu_start(uc, regs.eip, 0xffffffff, 0, 1)) {
-			wattron(console.content, COLOR_PAIR(3));
-			mvwprintw(console.content, 0, 0,  "ERROR: %s\n", uc_strerror(err));
-			wattroff(console.content, COLOR_PAIR(3));
-			mvwprintw(console.content, 1, 0, "(ENTER to quit)");
+			error(uc_strerror(err));
 			wgetnstr(console.content, buff, 1024);
 			break;
 		}
@@ -552,6 +561,11 @@ int main(int argc, char *argv[]) {
 		render();
 
 		inst_index = get_inst_index();
+		if(inst_index == -1) {
+			error("Instruction pointer fell outside valid code");
+			wgetnstr(console.content, buff, 1024);
+			break;
+		}
 
 	}
 
