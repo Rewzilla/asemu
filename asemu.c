@@ -46,7 +46,7 @@ typedef struct window {
 } window_t;
 
 typedef struct instruction {
-	char text[32];
+	char text[64];
 	char opcodes[16];
 	size_t opcode_len;
 	unsigned int address;
@@ -272,7 +272,7 @@ void init_instructions(char *file, int entrypoint) {
 
 	FILE *fp;
 	char buff[1024];
-	char instruction[16];
+	char instruction[64];
 	unsigned char *opcodes;
 	size_t size, count;
 	int i;
@@ -294,7 +294,7 @@ void init_instructions(char *file, int entrypoint) {
 	while(fgets(buff, 1024, fp)) {
 
 		for(i=0; i<strlen(buff); i++) {
-			if(buff[i] == ';' || buff['i'] == '\n') {
+			if(buff[i] == ';' || buff[i] == '\n') {
 				buff[i] = '\0';
 				break;
 			}
@@ -325,6 +325,7 @@ void init_instructions(char *file, int entrypoint) {
 		}
 
 		if(size == 0)
+			// FYI something bad might have just happened :(
 			continue;
 		else
 			offset += size;
@@ -337,7 +338,7 @@ void init_instructions(char *file, int entrypoint) {
 			inst->index = index++;
 			memcpy(inst->opcodes, opcodes, size);
 			inst->opcode_len = size;
-			strncpy(inst->text, buff, 32);
+			strncpy(inst->text, buff, 64);
 		} else {
 			if(!tmp)
 				tmp = inst;
@@ -349,7 +350,7 @@ void init_instructions(char *file, int entrypoint) {
 			tmp->index = index++;
 			memcpy(tmp->opcodes, opcodes, size);
 			tmp->opcode_len = size;
-			strncpy(tmp->text, buff, 32);
+			strncpy(tmp->text, buff, 64);
 		}
 
 		addr += size;
@@ -463,7 +464,7 @@ void render() {
 	for(i=0; tmp && i<code.height; i++,tmp=tmp->next) {
 		for(j=0; j<label_count; j++) {
 			if(labels[j].offset == offset) {
-				mvwprintw(code.content, i, 0, "% *s%s:", 28, " ", labels[j].text);
+				mvwprintw(code.content, i, 0, "% *s%s:", 36, " ", labels[j].text);
 				i++;
 			}
 		}
@@ -473,7 +474,7 @@ void render() {
 			strcat(opcodes, opcode);
 		}
 		mvwprintw(code.content, i, 0,
-			"%c %08x %-16s %s\n",
+			"%c %08x %-20s %s\n",
 			(tmp->address==regs.eip ? '>' : ' '),
 			tmp->address, opcodes, tmp->text);
 		offset += tmp->opcode_len;
@@ -557,6 +558,7 @@ int main(int argc, char *argv[]) {
 
 	if(!inst) {
 		printf("ERROR: failed to parse instructions\n");
+		endwin();
 		return 0;
 	}
 
