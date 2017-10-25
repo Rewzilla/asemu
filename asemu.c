@@ -77,6 +77,7 @@ int parent_y, parent_x;
 
 instruction_t *inst;
 registers_t regs;
+registers_t oldregs;
 
 label_t labels[1024];
 int label_count;
@@ -265,6 +266,7 @@ void init_regs() {
 	uc_reg_write(uc, UC_X86_REG_ESP, &regs.esp);
 	uc_reg_write(uc, UC_X86_REG_EIP, &regs.eip);
 
+	oldregs = regs;
 
 }
 
@@ -422,10 +424,66 @@ void render() {
 	uc_reg_read(uc, UC_X86_REG_ESP, &regs.esp);
 	uc_reg_read(uc, UC_X86_REG_EIP, &regs.eip);
 
+	if(regs.eax != oldregs.eax)
+		wattron(registers.content, COLOR_PAIR(3));
+	mvwprintw(registers.content, 0, 0, "EAX: %08x\n", regs.eax);
+	if(regs.eax != oldregs.eax)
+		wattroff(registers.content, COLOR_PAIR(3));
+
+	if(regs.ebx != oldregs.ebx)
+		wattron(registers.content, COLOR_PAIR(3));
+	mvwprintw(registers.content, 1, 0, "EBX: %08x\n", regs.ebx);
+	if(regs.ebx != oldregs.ebx)
+		wattroff(registers.content, COLOR_PAIR(3));
+
+	if(regs.ecx != oldregs.ecx)
+		wattron(registers.content, COLOR_PAIR(3));
+	mvwprintw(registers.content, 2, 0, "ECX: %08x\n", regs.ecx);
+	if(regs.ecx != oldregs.ecx)
+		wattroff(registers.content, COLOR_PAIR(3));
+
+	if(regs.edx != oldregs.edx)
+		wattron(registers.content, COLOR_PAIR(3));
+	mvwprintw(registers.content, 3, 0, "EDX: %08x\n", regs.edx);
+	if(regs.edx != oldregs.edx)
+		wattroff(registers.content, COLOR_PAIR(3));
+
+	if(regs.esi != oldregs.esi)
+		wattron(registers.content, COLOR_PAIR(3));
+	mvwprintw(registers.content, 4, 0, "ESI: %08x\n", regs.esi);
+	if(regs.esi != oldregs.esi)
+		wattroff(registers.content, COLOR_PAIR(3));
+
+	if(regs.edi != oldregs.edi)
+		wattron(registers.content, COLOR_PAIR(3));
+	mvwprintw(registers.content, 5, 0, "EDI: %08x\n", regs.edi);
+	if(regs.edi != oldregs.edi)
+		wattroff(registers.content, COLOR_PAIR(3));
+
+	if(regs.ebp != oldregs.ebp)
+		wattron(registers.content, COLOR_PAIR(3));
+	mvwprintw(registers.content, 6, 0, "EBP: %08x\n", regs.ebp);
+	if(regs.ebp != oldregs.ebp)
+		wattroff(registers.content, COLOR_PAIR(3));
+
+	if(regs.esp != oldregs.esp)
+		wattron(registers.content, COLOR_PAIR(3));
+	mvwprintw(registers.content, 7, 0, "ESP: %08x\n", regs.esp);
+	if(regs.esp != oldregs.esp)
+		wattroff(registers.content, COLOR_PAIR(3));
+
+	if(regs.eip != oldregs.eip)
+		wattron(registers.content, COLOR_PAIR(3));
+	mvwprintw(registers.content, 8, 0, "EIP: %08x\n", regs.eip);
+	if(regs.eip != oldregs.eip)
+		wattroff(registers.content, COLOR_PAIR(3));
+
+/*
 	mvwprintw(registers.content, 0, 0, REGISTERS_FMT,
 		regs.eax, regs.ebx, regs.ecx, regs.edx,
 		regs.esi, regs.edi, regs.ebp, regs.esp,
 		regs.eip);
+*/
 	draw_window(&registers);
 
 	for(i=stack.height-1,j=ESP_START; i>=0; i--,j-=4) {
@@ -446,8 +504,12 @@ void render() {
 			ptrstr[0] = '\x00';
 		}
 
+		if(j >= regs.esp)
+			wattron(stack.content, COLOR_PAIR(2));
 		mvwprintw(stack.content, i, 0, "%-4s%08x %02hhx%02hhx%02hhx%02hhx",
 			ptrstr, j, mem[0], mem[1], mem[2], mem[3]);
+		if(j >= regs.esp)
+			wattroff(stack.content, COLOR_PAIR(2));
 
 	}
 	draw_window(&stack);
@@ -464,7 +526,9 @@ void render() {
 	for(i=0; tmp && i<code.height; i++,tmp=tmp->next) {
 		for(j=0; j<label_count; j++) {
 			if(labels[j].offset == offset) {
+				wattron(code.content, COLOR_PAIR(4));
 				mvwprintw(code.content, i, 0, "% *s%s:", 36, " ", labels[j].text);
+				wattroff(code.content, COLOR_PAIR(4));
 				i++;
 			}
 		}
@@ -473,10 +537,14 @@ void render() {
 			sprintf(opcode, "%02hhx ", tmp->opcodes[j]);
 			strcat(opcodes, opcode);
 		}
+		if(tmp->address == regs.eip)
+			wattron(code.content, COLOR_PAIR(2));
 		mvwprintw(code.content, i, 0,
 			"%c %08x %-20s %s\n",
 			(tmp->address==regs.eip ? '>' : ' '),
 			tmp->address, opcodes, tmp->text);
+		if(tmp->address == regs.eip)
+			wattroff(code.content, COLOR_PAIR(2));
 		offset += tmp->opcode_len;
 	}
 	draw_window(&code);
@@ -549,6 +617,7 @@ int main(int argc, char *argv[]) {
 	init_pair(1, COLOR_GREEN, COLOR_BLACK);
 	init_pair(2, COLOR_BLACK, COLOR_GREEN);
 	init_pair(3, COLOR_RED, COLOR_BLACK);
+	init_pair(4, COLOR_BLUE, COLOR_BLACK);
 
 	init_regs();
 
@@ -570,6 +639,8 @@ int main(int argc, char *argv[]) {
 		render();
 
 		wgetnstr(console.content, buff, 1024);
+
+		oldregs = regs;
 
 		if(err = uc_emu_start(uc, regs.eip, 0xffffffff, 0, 1)) {
 			error(uc_strerror(err));
