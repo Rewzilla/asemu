@@ -516,7 +516,7 @@ void render() {
 
 	offset = 0;
 	tmp = inst;
-	if(count_instructions(inst) > code.height) {
+	if(count_instructions(inst) + label_count > code.height) {
 		for(i=0; i<inst_index-code.height/2; i++) {
 			offset += tmp->opcode_len;
 			tmp = tmp->next;
