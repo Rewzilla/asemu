@@ -110,7 +110,8 @@ int islabel(char *line) {
 		if(line[i] >= 'a' && line[i] <= 'z'
 		|| line[i] >= 'A' && line[i] <= 'Z'
 		|| line[i] >= '0' && line[i] <= '9'
-		|| line[i] == '_') {
+		|| line[i] == '_'
+		|| line[i] == ' ' || line[i] == '\t') {
 			// ok
 		} else {
 			break;;
