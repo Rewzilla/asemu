@@ -89,6 +89,8 @@ uc_engine *uc;
 
 void crash_handler(int sig) {
 
+	sleep(10);
+
 	endwin();
 
 	printf(
@@ -99,6 +101,15 @@ void crash_handler(int sig) {
 	);
 
 	exit(0);
+
+}
+
+void error(const char *msg) {
+
+		wattron(console.content, COLOR_PAIR(3));
+		mvwprintw(console.content, 0, 0,  "ERROR: %s\n", msg);
+		wattroff(console.content, COLOR_PAIR(3));
+		mvwprintw(console.content, 1, 0, "(ENTER to quit)");
 
 }
 
@@ -213,6 +224,58 @@ char *get_mnemonic(char *line) {
 
 }
 
+unsigned char at_interupt() {
+
+	unsigned char mem[2];
+
+	uc_mem_read(uc, regs.eip, mem, 2);
+
+	if(mem[0] == 0xcd)
+		return mem[1];
+	else
+		return 0;
+
+}
+
+int handle_interupt(unsigned char interupt) {
+
+	int i;
+	char c;
+
+	regs.eip += 2;
+	uc_reg_write(uc, UC_X86_REG_EIP, &regs.eip);
+
+	switch(interupt) {
+
+		case 0x80:
+			switch(regs.eax) {
+
+				case 0x00000003: // read
+					if(regs.ebx != 0) {
+						error("I/O stream not yet implemented");
+						return 0;
+					}
+					for(i=0; i<regs.edx; i++) {
+						c = wgetch(console.content);
+						uc_mem_write(uc, regs.ecx + i, &c, 1);
+					}
+					return 1;
+
+				default:
+					error("System call not yet implemented");
+					return 0;
+
+			}
+			return 1;
+
+		default:
+			error("Interupt not yet supported");
+			return 0;
+
+	}
+
+}
+
 int count_instructions(instruction_t *inst) {
 
 	int c;
@@ -240,6 +303,22 @@ int get_inst_index() {
 		return -1;
 	else
 		return tmp->index;
+
+}
+
+unsigned int next_inst_addr() {
+
+	instruction_t *tmp;
+
+	tmp = inst;
+	while(tmp && tmp->address != regs.eip) {
+		tmp = tmp->next;
+	}
+
+	if(tmp->next)
+		return tmp->next->address;
+	else
+		return -1;
 
 }
 
@@ -579,19 +658,12 @@ void render() {
 
 }
 
-void error(const char *msg) {
-
-		wattron(console.content, COLOR_PAIR(3));
-		mvwprintw(console.content, 0, 0,  "ERROR: %s\n", msg);
-		wattroff(console.content, COLOR_PAIR(3));
-		mvwprintw(console.content, 1, 0, "(ENTER to quit)");
-
-}
-
 int main(int argc, char *argv[]) {
 
 	int opt;
 	uc_err err;
+	unsigned char interupt;
+	unsigned int autopilot;
 
 	signal(SIGSEGV, crash_handler);
 
@@ -656,16 +728,31 @@ int main(int argc, char *argv[]) {
 
 	init_memory();
 
+	autopilot = 0;
+
 	char buff[1024];
 	for(;;) {
 
 		render();
 
-		wgetnstr(console.content, buff, 1024);
+		if(autopilot == 0 || regs.eip == autopilot) {
+			autopilot = 0;
+			wgetnstr(console.content, buff, 1024);
+			if(strcmp(buff, "next") == 0) {
+				autopilot = next_inst_addr();
+				buff[0] = '\0';
+			}
+		}
 
 		oldregs = regs;
 
-		if(err = uc_emu_start(uc, regs.eip, 0xffffffff, 0, 1)) {
+		if(interupt = at_interupt()) {
+			if(!handle_interupt(interupt)) {
+				render();
+				wgetnstr(console.content, buff, 1024);
+				break;
+			}
+		} else if(err = uc_emu_start(uc, regs.eip, 0xffffffff, 0, 1)) {
 			render();
 			error(uc_strerror(err));
 			wgetnstr(console.content, buff, 1024);
