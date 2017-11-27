@@ -142,6 +142,27 @@ int isbranch(char *line) {
 
 }
 
+char *trim(char *line) {
+
+	int i;
+	static char s[1024];
+
+	while(*line == ' ' || *line == '\t')
+		line++;
+
+	i = 0;
+	while(*line >= 'a' && *line <= 'z'
+		||*line >= 'A' && *line <= 'Z'
+		||*line >= '0' && *line <= '9'
+		||*line == '_')
+		s[i++] = *line++;
+
+	s[i] = '\0';
+
+	return s;
+
+}
+
 char *get_label(char *line) {
 
 	int i;
@@ -369,7 +390,8 @@ void init_instructions(char *file, int entrypoint) {
 	while(tmp != NULL) {
 		if(isbranch(tmp->text)) {
 			for(i=0; i<label_count; i++) {
-				if(strncmp(labels[i].text, get_label(tmp->text), strlen(labels[i].text)) == 0)
+				if(strlen(trim(labels[i].text)) == strlen(get_label(tmp->text))
+				&& strncmp(trim(labels[i].text), get_label(tmp->text), strlen(trim(labels[i].text))) == 0)
 					break;
 			}
 			sprintf(instruction, "%s %c%d", get_mnemonic(tmp->text), (offset > labels[i].offset) ? '-' : '+',
@@ -644,6 +666,7 @@ int main(int argc, char *argv[]) {
 		oldregs = regs;
 
 		if(err = uc_emu_start(uc, regs.eip, 0xffffffff, 0, 1)) {
+			render();
 			error(uc_strerror(err));
 			wgetnstr(console.content, buff, 1024);
 			break;
@@ -653,6 +676,7 @@ int main(int argc, char *argv[]) {
 
 		inst_index = get_inst_index();
 		if(inst_index == -1) {
+			render();
 			error("Instruction pointer fell outside valid code");
 			wgetnstr(console.content, buff, 1024);
 			break;
