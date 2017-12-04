@@ -3,7 +3,7 @@
 
 WARNING: This software is in **super ultra early alpha 0.00001** status! YMMV!
 
-![asemu screenshot](http://imgur.com/tqiPwcTl.png "asemu screenshot")
+![asemu screenshot](http://i.imgur.com/qjP7P5I.png "asemu screenshot")
 
 # Dependencies
 
