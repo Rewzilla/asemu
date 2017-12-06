@@ -7,9 +7,11 @@ WARNING: This software is in **super ultra early alpha 0.00001** status! YMMV!
 
 # Dependencies
 
+ * libncurses
+ * cmake
  * libcapstone
  * libkeystone
  * libunicorn
 
-All of these can be installed with the 'deps.sh' script (tested on Ubuntu 16.04)
+Install the first two (at least) with your package manager.  The other three can be installed with the 'deps.sh' script (tested on Ubuntu 16.04)
 
