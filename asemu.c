@@ -254,7 +254,7 @@ int isbranch(char *line) {//checks if command is a jump or call
 		if(line[i] == ' ' || line[i] == '\t')
 			continue;
 		// dirty hack for jmp's, oh jeez, TODO :(
-		else if(strncasecmp(&line[i], "call", 4) == 0 || line[i] == 'j'){
+		else if(strncasecmp(&line[i], "call", 4) == 0 || line[i] == 'j' || strncasecmp(&line[i], "loop", 4) ==0){
 			return 1;
 		}
 		else
@@ -911,7 +911,7 @@ char* get_end(char *buff){//don't necisarily need this
 int sym_resolver(const char *symbol, uint64_t *value){
 	
 	Segments *walk = dataseg;
-	while(walk != NULL){
+	while(walk != NULL){//data
 		if(!strcmp(symbol, walk->name))
 		{
 			*value = walk->address;
@@ -922,7 +922,7 @@ int sym_resolver(const char *symbol, uint64_t *value){
 	if(walk != NULL)
 		return 1;
 	walk = bssseg;
-	while(walk != NULL){
+	while(walk != NULL){//bss
 		if(!strcmp(symbol, walk->name))
 		{
 			*value = walk->address;
@@ -934,7 +934,7 @@ int sym_resolver(const char *symbol, uint64_t *value){
 		return 1;
 	
 	struct define * definewalk = define;
-	while(definewalk!= NULL){
+	while(definewalk!= NULL){//defined values
 		if(!strcmp(definewalk->name, symbol))
 		{
 			switch(definewalk->type){
