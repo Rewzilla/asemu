@@ -1854,6 +1854,8 @@ void usage(char *arg0) {
 	printf("\n");
 	printf("  %-10s %s\n", "-h", "Print this help menu");
 	printf("\n");
+	printf("  %-10s %s\n", "-c", "Run without compiling (not recommended)");
+	printf("\n");
 	printf("(c)opyleft Andrew Kramer, 2017, <andrew@jmpesp.org>\n");
 }
 
