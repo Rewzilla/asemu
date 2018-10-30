@@ -2153,15 +2153,15 @@ int main(int argc, char *argv[]) {
 	unsigned int autopilot;
 	set_tabsize(4);
 	ind = 0;	
-	//signal(SIGSEGV, crash_handler);
+	signal(SIGSEGV, crash_handler);
 	bool compiler = 1;
 
-	while((opt = getopt(argc, argv, "ho")) != -1) {
+	while((opt = getopt(argc, argv, "hc")) != -1) {
 		switch(opt) {
 			case 'h':	// help
 				usage(argv[0]);
 				return 0;
-			case 'o':	// compiler
+			case 'c':	// compiler
 				compiler--;
 				break;
 			default:
