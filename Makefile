@@ -5,10 +5,8 @@ CFLAGS	:= -g
 LIBS	:= -lncurses -lkeystone -lcapstone -lunicorn -lpthread
 
 all:
-	$(CC) $(CFLAGS) -o asemu asemu.c $(LIBS)
-
-install:
-	cp asemu /usr/local/bin/asemu
+	$(CC) $(CFLAGS) -o asemu asemu.c $(LIBS) 
+	mv asemu /usr/local/bin/asemu
 
 uninstall:
 	rm /usr/local/bin/asemu
