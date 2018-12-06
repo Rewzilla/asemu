@@ -1885,7 +1885,6 @@ void scrolls(int val){//scrolls screen, also func name scroll was taken
 			if((val < 0 ? tmp->prev == NULL : tmp->next == NULL))
 				break;
 		}
-	
 		inst_index = get_inst_index(tmp->address);
 	}	
 	render();
@@ -2143,42 +2142,14 @@ void render() {
 
 void printhelp(){//TODO add scrolling later
 	
-	char buff[1] = "\0";
-	draw_window(&code);
-	init_window(&code, 0, REGISTER_WIDTH +code.width/6, parent_y - CONSOLE_HEIGHT, parent_x - REGISTER_WIDTH - STACK_WIDTH-code.width/3, "CODE");
-	int i = code.width/2 - 30;
-	wattron(code.content, COLOR_PAIR(1));
-	mvwprintw(code.content, 0, i, 
-	"Welcome To The Assembly Emulator (assemu)\n\n"
+	endwin();
 
-	"To the left you will see the available registers present along with the values they hold\n throughout the program's runtime\n"
-	"To the right you will see the current representation of the stack, as the program runs\n values will be pushed and popped from the stack\n"
-	"Where you are reading currently is the code house, the place where you can see what command\n is being run as well as other bits of information\n"
-	"Below where you typed help at is the console, all input and output will go through there and\n a list of commands follows:\n"
-
-	"\trun, continue, or go  -  starts the program and goes until a breakpoint, end of file, error,\n external function call, or error\n\n"
-	"\tnext, step, or ''  -  goes to the next instruction unless a number is given after then will execute\n that many instructions\n\n"
-	"\tskip  -  skips over the current instruction and goes to the next, instuction still executes\n\n"
-	"\tbreakpoint, break, or bp  -  sets a breakpoint at the address location given after the command,\n example: breakpoint 0x4000023 (all values are read as hex)\n\n"
-	"\tsroll x  -  scrolls though the instrucion set x many instructions negative goes up and positive\n goes down, with 0 going back to the original instrucation\n\n"
-	"\tdisplay s  - used to display the segments as well as any defined variables, leaving blank shows\n everything, but saying only one segment will only return that segment. example display data\n\n"
-	"\tresize  -  realigns the size of the screen to the window size, use if screen has changed\n\n"
-	"\thelp  -  displays this help screen \n\n"
-	"\tquit or exit  -  quits the program\n\n"
-
-	"Since emulating external funciton calls is hard, all external function calls are hard codded in,\n so if you would like additional functions please ask\n"
-	"The available functions currently are: printf, scanf, strlen, atoi, strcmp, read_char, read_int,\n print_nl, print_int, print_char, print_string, putchar, getchar, puts, and gets\n\n"
-
-	"Finally asemu looks better at full screen but can still operate at smaller sizes\n"
-	);
-	wattroff(code.content, COLOR_PAIR(1));
-	wrefresh(code.content);
-
-	mvwprintw(console.content, 0, 0, "Press ENTER to exit");
-	wgetnstr(console.content, buff, 0);
+	system("clear;less helppage");
 	
-	init_window(&code, 0, REGISTER_WIDTH, parent_y - CONSOLE_HEIGHT, parent_x - REGISTER_WIDTH - STACK_WIDTH, "CODE");
-}
+	initscr();
+	render();
+
+	}
 
 void resize(){
 
@@ -2287,11 +2258,12 @@ int main(int argc, char *argv[]) {
 	int counter = 0;	
 	char buff[1024] = {'\0'};
 	for(;;) {
-		memset(buff, 0, 32);
+		for(int i = 0; i < 32; i++)
+			buff[i] = 0;
+		//memset(buff, 0, 32);
 		render();
 		
 		if(counter  && counter--==0){
-			printf("test\n");	
 			autopilot = 1;
 		}
 		if(autopilot == 1 || autopilot == regs.eip || inst_index->breakpoint) {

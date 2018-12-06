@@ -1,0 +1,25 @@
+Welcome To The Assembly Emulator (assemu)
+
+	On the left you will see the available registers present along with the values they hold throughout the program's runtime
+	On the right you will see the current representation of the stack, as the program runs values will be pushed and popped from the stack
+	In the middle is the code house or code segment, the place where you can see what command is being run as well as other bits of information
+
+	Below where you typed help at is the console, all input and output will go through there and a list of commands follows:
+
+	run, continue, or go  -  starts the program and goes until a breakpoint, end of file, error, external function call, or error
+	next, step, or ''  -  goes to the next instruction unless a number is given after then will execute that many instructions
+	skip  -  skips over the current instruction and goes to the next, instuction still executes
+	breakpoint, break, bp, b  -  sets a breakpoint at the address location given after the command, example: breakpoint 0x4000023 (all values are read as hex)
+	sroll x  -  scrolls though the instrucion set x many instructions negative goes up and positive goes down, with 0 going back to the original instrucation
+	display s  - used to display the segments as well as any defined variables, leaving blank shows everything, but saying only one segment will only return that segment. example display data
+	resize  -  realigns the size of the screen to the window size, use if screen has changed
+	help  -  displays this help screen 
+	quit or exit  -  quits the program
+
+	Since emulating external funciton calls is hard, all external function calls are hard codded in, so if you would like additional functions please ask
+	The available functions currently are: printf, scanf, strlen, atoi, strcmp, read_char, read_int, print_nl, print_int, print_char, print_string, putchar, getchar, puts, and gets
+
+	Finally asemu looks better at full screen but can still operate at smaller sizes
+
+
+			press q to return
