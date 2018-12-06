@@ -20,3 +20,4 @@ Known Issues:
   At seeminly random times the program will look fine but will operate executing several instructions at once.
   When trying to "display" everything, some times there is weird issues with the buffer being corrupted
   Scrolling seems to display interesting figures at times when it goes out of bounds
+  Data and Bss do not always read in all forms of input correctly, usually stick with decimal
