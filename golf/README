@@ -1,0 +1,8 @@
+Welcome to this directory, I am glad you came. This direcotry contains this read me and a gunzipped/tarred selection of practice holes to be used on golf.hostbin.org. There you can create an account and play the created x86 assembly holes. If your new to this the goal is to complete the instructions in the fewest bytes possible.
+Somethings to note:
+	1: Assemu was created to help with visual representation of assembly code in action
+	2: The byte codes may not always be exact
+	3: Every hole in this folder contains some setup needed, all you need to do is start your code after the main label.
+	4: At the end of every hole there will be some comment or extra code to help display what values should be returned
+	5: These holes are yours, you can change them however you want.
+	6: Have Fun! 

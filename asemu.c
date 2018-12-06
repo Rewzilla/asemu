@@ -581,6 +581,7 @@ void getText(char *buff){//grabs text data
 void getbss(char *buff){//grabs bss data
 	
 	int i = 0;
+	//data_size = 0;
 	while(*buff == ' ' || *buff == '\t')
 		buff++;
 	if(*buff == '\0'){
@@ -629,8 +630,9 @@ void getbss(char *buff){//grabs bss data
 		buff +=4;
 		bsswalk->type = 1;
 		bsswalk->value = 0;
-		if(get_mnemonic(buff)[0] >= '0' && get_mnemonic(buff)[0] <= '9')
-			bsswalk->size = atoi(get_mnemonic(buff));
+		int tmp;
+		if(sscanf(buff, "%i", &tmp))
+			bsswalk->size = tmp;
 		else{
 			struct define *definewalk = define;
 			while(definewalk!= NULL)
@@ -648,10 +650,10 @@ void getbss(char *buff){//grabs bss data
 		}
 
 	}
-	bsswalk->address = EIP_START+PAGE_SZ+PAGE_SZ+data_size;
+	bsswalk->address = 0x4800000+data_size;
 		if(uc_mem_write(uc, bsswalk->address, &bsswalk->value, (bsswalk->type == 1 ? bsswalk->size * 4 : bsswalk->size)) != UC_ERR_OK)
 			printf("Memory for the bss section could not be made please document what happened and how\n");
-	data_size += bsswalk->size;
+	data_size += (bsswalk->size *( bsswalk->type == 1? 4 : 1));
 	bss_count++;
 }
 
@@ -660,7 +662,6 @@ void getdata(char *buff){//grabs data data
 	int i = 0, j, tmp = 0;
 	while(*buff == ' ' || *buff == '\t')
 		buff++;
-	
 	if(buff[i] == '\0'){
 		printf("Your Data segment is broken please try to fix at \"%s\" variable\n", buff);
 		exit(0);
@@ -680,7 +681,6 @@ void getdata(char *buff){//grabs data data
 	strncpy(datawalk->name, get_mnemonic(buff), 31);
 	datawalk->name[31] = '\0';
 	buff+= strlen(get_mnemonic(buff));
-	
 	while(*buff == ' ' || *buff == '\t')
 		buff++;
 	if(!strncasecmp(buff, "db", 2))//character or string
@@ -690,11 +690,11 @@ void getdata(char *buff){//grabs data data
 		{
 			buff++;
 		}
-		datawalk->original = (strlen(buff) > 128 ? malloc(128) : malloc(strlen(buff)+1));
-		strncpy(datawalk->original, buff, (strlen(buff) > 128 ? 127 : strlen(buff)+1));
-		if(strlen(buff) > 128);
-		datawalk->original[127] = '\0';
-		datawalk->string = malloc(sizeof(datawalk->original));
+		datawalk->original = malloc(512);//(strlen(buff) > 128 ? malloc(128) : malloc(strlen(buff)+1));
+		strncpy(datawalk->original, buff, (strlen(buff) > 511 ? 512 : strlen(buff)+1));
+		if(strlen(buff) > 511);
+		datawalk->original[511] = '\0';
+		datawalk->string = malloc(128);
 		j = 0, i = 0;
 		int a = 0, b = 0, c = 0;
 		int jk;
@@ -749,7 +749,7 @@ void getdata(char *buff){//grabs data data
 			}
 			else
 				b++;
-			if(a >= 128 || b >= strlen(buff))
+			if(a >= 512 || b >= strlen(buff))
 				break;
 		}
 		datawalk->type = 2; //string
@@ -757,7 +757,7 @@ void getdata(char *buff){//grabs data data
 		datawalk->value = 0;
 	}
 	else if(!strncasecmp(buff, "dd", 2)){
-		
+		int value;
 		buff += 2;
 		while(*buff == ' ' || *buff == '\t')
 		{
@@ -783,20 +783,25 @@ void getdata(char *buff){//grabs data data
 				definewalk = definewalk->next;
 			}
 		}
+		else if(sscanf(trim(buff), "%i", &value) == 1){
+				datawalk->value = value;
+		}
 		else{
-			datawalk->value = atoi(trim(buff));
+			endwin();
+			printf("The following value is not recognized '%s'", buff);
+			exit(1);
 		}
 	}
 	else{
 		printf("Hopefully you see this and realize there was a problem with reading the data section good luck figuring it out, currently only Defined Bytes and Defined Doublewords are allowed\n");
 	}
-	datawalk->address = EIP_START+PAGE_SZ+data_size;
+	datawalk->address = 0x4400000+data_size;
 	
 	if(datawalk->type == 1)
 		uc_mem_write(uc, datawalk->address, &datawalk->value, 4);
 	else
 		if(uc_mem_write(uc, datawalk->address, datawalk->string, datawalk->size) != UC_ERR_OK)
-			printf("Memory for the data section could not be made please document what happened and how");
+			printf("Memory for the data section could not be made please document what happened and how\n");
 	data_size += datawalk->size;
 	data_count++;
 	return;
@@ -840,11 +845,11 @@ int textsegment(FILE **fp, char *buff){
 }
 
 int bsssegment(FILE **fp, char *buff){
-	
-	uc_mem_map(uc, regs.eip+PAGE_SZ+PAGE_SZ, PAGE_SZ, UC_PROT_ALL); //allocates bss memory after data large chunk though
+
+	uc_mem_map(uc, 0x4800000, 4*1024, UC_PROT_ALL); //allocates bss memory after data large chunk though
 	int i;
 	bss_count = 0;
-	
+	data_size = 0;
 	while(1){
 		fgets(buff, 1024, *fp);
 		if(i = issegment(buff)){
@@ -873,9 +878,9 @@ int bsssegment(FILE **fp, char *buff){
 int datasegment(FILE **fp, char *buff){
 	
 	data_count = 0;
-	uc_mem_map(uc, regs.eip+PAGE_SZ, PAGE_SZ, UC_PROT_ALL);//allocates data segment, large chunk though
+	uc_mem_map(uc, 0x4400000, PAGE_SZ, UC_PROT_ALL);//allocates data segment, large chunk though
 	int i;
-	
+	data_size = 0;
 	while(1){
 		fgets(buff, 1024, *fp);
 		if(i = issegment(buff)){
@@ -911,6 +916,13 @@ char* get_end(char *buff){//don't necisarily need this
 int sym_resolver(const char *symbol, uint64_t *value){
 	
 	Segments *walk = dataseg;
+	for(int i = 0; i < label_count; i++){
+		if(!strcmp(labels[i].text, symbol)){
+			*value = labels[i].offset + 0x4000000;
+			return 1;
+		}	
+
+	}
 	while(walk != NULL){//data
 		if(!strcmp(symbol, walk->name))
 		{
@@ -1533,6 +1545,16 @@ void breakpoint(char* buff){
 		}
 	}
 };
+
+void fixlabels(unsigned int offset, int newpos){
+	
+	for(int i = 0; i < label_count; i++){
+		if(labels[i].offset >= offset)
+			labels[i].offset+= newpos;
+	}
+
+}
+
 void init_instructions(FILE *fp, int entrypoint) {
 
 	define = NULL;
@@ -1541,7 +1563,7 @@ void init_instructions(FILE *fp, int entrypoint) {
 	unsigned char *opcodes;
 	size_t size, count;
 	int i;
-	instruction_t *tmp;
+	instruction_t *tmp, *tmp2;
 	int addr, offset;//, index;
 
 	if(!fp) {
@@ -1570,14 +1592,13 @@ void init_instructions(FILE *fp, int entrypoint) {
 		}
 		strncpy(comment, buff, 63); // allows comments
 		comment[63] = '\0'; //terminate the string if buff is longer than 64 characters.
-
+		
 		for(i=0; i<strlen(buff); i++) {
 			if(buff[i] == ';' || buff[i] == '\n') {
 				buff[i] = '\0';		
 				break;
 			}
 		}
-
 		if(islabel(buff)) {
 			strcpy(labels[label_count].text, buff);
 			for(i=0; i<strlen(labels[label_count].text); i++) {
@@ -1592,8 +1613,11 @@ void init_instructions(FILE *fp, int entrypoint) {
 		}
 
 		if(isbranch(buff)) {
-			sprintf(instruction, "%s +0", get_mnemonic(buff));
-			ks_asm(ks, instruction, 0, &opcodes, &size, &count);
+			if(strncmp(get_mnemonic(buff), "loop",4))	
+				sprintf(instruction, "%s +999", get_mnemonic(buff));
+			else
+				sprintf(instruction, "%s +0", get_mnemonic(buff));
+				ks_asm(ks, instruction, 0, &opcodes, &size, &count);
 		}
 		else if(isimport(comment)){
 			continue;
@@ -1738,17 +1762,20 @@ void init_instructions(FILE *fp, int entrypoint) {
 		free(opcodes);
 	}
 	fclose(fp);
-	tmp = inst;
-	offset = 0;
+	int newpos;
 	int offset2;
-	while(tmp != NULL) {//fix for calls not being able to use symbol link table
-		if(isbranch(tmp->text)) {
-			for(i=0; i<label_count; i++) {
-				if(strlen(trim(labels[i].text)) == strlen(get_label(tmp->text))
-				&& strncmp(trim(labels[i].text), get_label(tmp->text), strlen(trim(labels[i].text))) == 0)
-					break;
-			}
-			offset2 = offset;
+	int counter = 2;
+	while(counter--){//fixes the creation of long jumps throwing off alignment
+		tmp = inst;
+		offset = 0;
+		while(tmp != NULL) {//fix for calls not being able to use symbol link table
+			if(isbranch(tmp->text) ) {
+				for(i=0; i<label_count; i++) {
+					if(strlen(trim(labels[i].text)) == strlen(get_label(tmp->text))
+					&& strncmp(trim(labels[i].text), get_label(tmp->text), strlen(trim(labels[i].text))) == 0)
+						break;
+				}
+				offset2 = offset;
 			if(i == label_count){
 				if(!external_func(get_label(tmp->text)))
 					offset2 = 10000;
@@ -1758,14 +1785,32 @@ void init_instructions(FILE *fp, int entrypoint) {
 				}
 
 			}
-			sprintf(instruction, "%s %c%d", get_mnemonic(tmp->text), (offset2 > labels[i].offset) ? '-' : '+',(offset2 > labels[i].offset) ? offset2 - labels[i].offset: labels[i].offset - offset2);
-			ks_asm(ks, instruction, 0, &opcodes, &size, &count);
-			memcpy(tmp->opcodes, opcodes, size);
+				sprintf(instruction, "%s %c%d", get_mnemonic(tmp->text), (offset2 > labels[i].offset) ? '-' : '+',(offset2 > labels[i].offset) ? offset2 - labels[i].offset: labels[i].offset - offset2);
+				ks_asm(ks, instruction, 0, &opcodes, &size, &count);
+				tmp->opcode_len = size;
+				memcpy(tmp->opcodes, opcodes, size);
+			if(tmp->next != NULL){
+				tmp2 = tmp->next;
+				while (tmp2 != NULL && tmp2->address > 0x5000000)
+					tmp2=tmp2->next;
+				if(tmp2!= NULL && (newpos=0x4000000+offset+tmp->opcode_len-tmp2->address)){
+					while(tmp2!=NULL){
+						if(tmp2->address < 0x5000000)
+							tmp2->address+=newpos;
+						tmp2= tmp2->next;
+					}
+					fixlabels(offset+tmp->opcode_len, newpos);
+					
+				}
+			}
+			
+			}
+		
+			offset += tmp->opcode_len;
+			tmp = tmp->next;
 		}
-
-		offset += tmp->opcode_len;
-		tmp = tmp->next;
 	}
+
 }
 		
 void init_memory() {
@@ -1776,7 +1821,7 @@ void init_memory() {
 	for(tmp=inst; tmp; tmp=tmp->next) {
 		uc_mem_write(uc, tmp->address, tmp->opcodes, tmp->opcode_len);
 	}
-	uc_mem_map(uc, regs.esp - PAGE_SZ, PAGE_SZ, UC_PROT_ALL);
+	uc_mem_map(uc, regs.esp - PAGE_SZ+1024*4, PAGE_SZ, UC_PROT_ALL);
 
 }
 void display(char *buff){
@@ -1840,10 +1885,8 @@ void scrolls(int val){//scrolls screen, also func name scroll was taken
 			if((val < 0 ? tmp->prev == NULL : tmp->next == NULL))
 				break;
 		}
-	
 		inst_index = get_inst_index(tmp->address);
 	}	
-
 	render();
 }
 
@@ -1888,7 +1931,7 @@ void printsegments(int x){//TODO add scrolling later
 		walker = bssseg;
 			
 		while(walker != NULL){
-			mvwprintw(code.content, i, 0, "   %x%7s\t%s\t%d",walker->address, walker->name, (walker->type == 1 ? "resd" : "resb"), walker->size);
+			mvwprintw(code.content, i, 0, "   %x   %s\t%s\t%d",walker->address, walker->name, (walker->type == 1 ? "resd" : "resb"), walker->size);
 			i++;
 			walker = walker->next;
 		}
@@ -1997,11 +2040,11 @@ void render() {
 	draw_window(&registers);
 	for(i=stack.height-1,j=(regs.esp < (ESP_START-(stack.height-2)*4)) ? (ESP_START-(ESP_START-(stack.height -2)*4-regs.esp)) : ESP_START; i>=0; i--,j-=4) {
 
-		if(j==ESP_START) {
+	/*	if(j==ESP_START) {
 			memset(mem, '\0', 4);
 		} else {
-			uc_mem_read(uc, j, mem, 4);
-		}
+	*/		uc_mem_read(uc, j, mem, 4);
+	//	}
 
 		if(j == regs.esp && regs.esp == regs.ebp) {
 			strcpy(ptrstr, "BS>");
@@ -2099,42 +2142,14 @@ void render() {
 
 void printhelp(){//TODO add scrolling later
 	
-	char buff[1] = "\0";
-	draw_window(&code);
-	init_window(&code, 0, REGISTER_WIDTH +code.width/6, parent_y - CONSOLE_HEIGHT, parent_x - REGISTER_WIDTH - STACK_WIDTH-code.width/3, "CODE");
-	int i = code.width/2 - 30;
-	wattron(code.content, COLOR_PAIR(1));
-	mvwprintw(code.content, 0, i, 
-	"Welcome To The Assembly Emulator (assemu)\n\n"
+	endwin();
 
-	"To the left you will see the available registers present along with the values they hold\n throughout the program's runtime\n"
-	"To the right you will see the current representation of the stack, as the program runs\n values will be pushed and popped from the stack\n"
-	"Where you are reading currently is the code house, the place where you can see what command\n is being run as well as other bits of information\n"
-	"Below where you typed help at is the console, all input and output will go through there and\n a list of commands follows:\n"
-
-	"\trun, continue, or go  -  starts the program and goes until a breakpoint, end of file, error,\n external function call, or error\n\n"
-	"\tnext, step, or ''  -  goes to the next instruction unless a number is given after then will execute\n that many instructions\n\n"
-	"\tskip  -  skips over the current instruction and goes to the next, instuction still executes\n\n"
-	"\tbreakpoint, break, or bp  -  sets a breakpoint at the address location given after the command,\n example: breakpoint 0x4000023 (all values are read as hex)\n\n"
-	"\tsroll x  -  scrolls though the instrucion set x many instructions negative goes up and positive\n goes down, with 0 going back to the original instrucation\n\n"
-	"\tdisplay s  - used to display the segments as well as any defined variables, leaving blank shows\n everything, but saying only one segment will only return that segment. example display data\n\n"
-	"\tresize  -  realigns the size of the screen to the window size, use if screen has changed\n\n"
-	"\thelp  -  displays this help screen \n\n"
-	"\tquit or exit  -  quits the program\n\n"
-
-	"Since emulating external funciton calls is hard, all external function calls are hard codded in,\n so if you would like additional functions please ask\n"
-	"The available functions currently are: printf, scanf, strlen, atoi, strcmp, read_char, read_int,\n print_nl, print_int, print_char, print_string, putchar, getchar, puts, and gets\n\n"
-
-	"Finally asemu looks better at full screen but can still operate at smaller sizes\n"
-	);
-	wattroff(code.content, COLOR_PAIR(1));
-	wrefresh(code.content);
-
-	mvwprintw(console.content, 0, 0, "Press ENTER to exit");
-	wgetnstr(console.content, buff, 0);
+	system("clear;less helppage");
 	
-	init_window(&code, 0, REGISTER_WIDTH, parent_y - CONSOLE_HEIGHT, parent_x - REGISTER_WIDTH - STACK_WIDTH, "CODE");
-}
+	initscr();
+	render();
+
+	}
 
 void resize(){
 
@@ -2243,10 +2258,12 @@ int main(int argc, char *argv[]) {
 	int counter = 0;	
 	char buff[1024] = {'\0'};
 	for(;;) {
-		memset(buff, 0, 32);
+		for(int i = 0; i < 32; i++)
+			buff[i] = 0;
+		//memset(buff, 0, 32);
 		render();
 		
-		if(counter--==0){
+		if(counter  && counter--==0){
 			autopilot = 1;
 		}
 		if(autopilot == 1 || autopilot == regs.eip || inst_index->breakpoint) {
