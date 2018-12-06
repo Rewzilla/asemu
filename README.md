@@ -1,7 +1,7 @@
 # asemu
 32-bit x86 emulator using ncurses and capstone/keystone/unicorn
 
-WARNING: This software is in **super ultra early alpha 0.00001** status! YMMV!
+WARNING: This software is in **Beta** status! YMMV!
 
 ![asemu screenshot](http://i.imgur.com/qjP7P5I.png "asemu screenshot")
 
@@ -17,6 +17,6 @@ Install the first two (at least) with your package manager.  The other three can
 
 
 Known Issues:
-  viewing the help screen while not full screen displays nothing
   At seeminly random times the program will look fine but will operate executing several instructions at once.
-  When trying to "display" everything weird issues with the buffer being corrupted
+  When trying to "display" everything, some times there is weird issues with the buffer being corrupted
+  Scrolling seems to display interesting figures at times when it goes out of bounds
